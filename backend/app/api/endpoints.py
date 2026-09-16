@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from backend.app.database.session import get_db, Base, engine
 from backend.app.models.domain import Employee, Decision, Workflow, Outcome
 from backend.ml.inference.predictor import predictor
+from backend.ml.inference.anomaly_detector import anomaly_detector
 from backend.ml.explainability.explainer import explainer
 from backend.app.services.temporal import temporal_service
 from backend.graph.graph_service import graph_service
@@ -19,12 +20,17 @@ from backend.governance.firewall import decision_firewall
 from backend.app.services.decision_service import decision_service
 from backend.workflows.enterpro_adapter import enterpro_adapter
 from backend.memory.organizational_memory import organizational_memory
+from backend.app.services.model_registry import model_registry
+from backend.app.services.orchestrator import intelligence_orchestrator
 
 router = APIRouter()
 
 # Schema models
 class PredictRequest(BaseModel):
     employee_id: str
+    record: dict
+
+class AnomalyRequest(BaseModel):
     record: dict
 
 class ExplainRequest(BaseModel):
@@ -62,6 +68,15 @@ class OutcomeRecordRequest(BaseModel):
     expected_change: float
     actual_change: float
 
+# Model Registry Endpoints
+@router.get("/models")
+def list_models():
+    return model_registry.list_models()
+
+@router.get("/models/{model_name}")
+def get_model(model_name: str):
+    return model_registry.get_model(model_name)
+
 # ML Endpoints
 @router.get("/ml/model-info")
 def get_model_info():
@@ -78,6 +93,20 @@ def batch_predict(records: List[dict]):
 @router.post("/ml/explain/{employee_id}")
 def explain_employee(employee_id: str, req: ExplainRequest):
     return explainer.explain_employee(req.record)
+
+# Anomaly Endpoint
+@router.post("/intelligence/anomaly")
+def detect_anomaly(req: AnomalyRequest):
+    return anomaly_detector.detect_employee_anomaly(req.record)
+
+# Consolidated Intelligence Endpoints
+@router.get("/intelligence/employee/{employee_id}")
+def get_employee_intelligence(employee_id: str, db: Session = Depends(get_db)):
+    return intelligence_orchestrator.orchestrate_employee_intelligence(db, employee_id)
+
+@router.get("/intelligence/workforce")
+def get_workforce_intelligence(db: Session = Depends(get_db)):
+    return intelligence_orchestrator.orchestrate_workforce_intelligence(db)
 
 # Intelligence & Trajectory
 @router.get("/intelligence/trajectory/{employee_id}")
@@ -159,7 +188,6 @@ def get_decision(id: str, db: Session = Depends(get_db)):
 @router.post("/decisions/{id}/approve")
 def approve_decision(id: str, approver: str = "Sarah Jenkins", db: Session = Depends(get_db)):
     res = decision_service.approve_decision(db, id, approver)
-    # Execute workflow in EnterPro adapter
     d = db.query(Decision).filter(Decision.id == id).first()
     if d:
         wf_res = enterpro_adapter.create_workflow(db, id, f"Retention Workflow - {d.employee_id}", d.employee_id, "Workload redistribution")
