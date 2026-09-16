@@ -9,7 +9,8 @@ class DecisionFirewall:
         confidence_pct: float = 88.0,
         trajectory_class: str = "DETERIORATING",
         is_anomaly: bool = True,
-        has_conflict: bool = False
+        has_conflict: bool = False,
+        robustness_status: str = "ROBUST"
     ) -> Dict[str, Any]:
         pipeline_checks = []
 
@@ -52,8 +53,12 @@ class DecisionFirewall:
         # 5. Policy
         pipeline_checks.append({"stage": "Policy", "status": "PASS", "note": "Matches Workload & On-Call Fairness Policy §2.1"})
 
-        # 6. Fairness
-        pipeline_checks.append({"stage": "Fairness", "status": "REVIEW", "note": "Comparable cohort variance slightly elevated"})
+        # 6. Robustness Check
+        pipeline_checks.append({
+            "stage": "Robustness",
+            "status": "PASS" if robustness_status in ["ROBUST", "SENSITIVE"] else "REVIEW",
+            "note": f"Perturbation test status: {robustness_status}"
+        })
 
         # 7. Simulation
         pipeline_checks.append({"stage": "Simulation", "status": "PASS", "note": "Simulated risk reduction of 24pts at low cost"})
@@ -65,9 +70,9 @@ class DecisionFirewall:
         has_blocked = any(c["status"] == "BLOCKED" for c in pipeline_checks)
         if has_blocked:
             recommended_action = "DO_NOT_ACT"
-        elif risk_score >= 70 and agreement == "AGREE":
+        elif risk_score >= 70 and agreement == "AGREE" and robustness_status == "ROBUST":
             recommended_action = "ACT"
-        elif risk_score >= 50 or agreement == "CONFLICT":
+        elif risk_score >= 50 or agreement == "CONFLICT" or robustness_status in ["SENSITIVE", "FRAGILE"]:
             recommended_action = "REVIEW"
         else:
             recommended_action = "WAIT"
@@ -82,6 +87,7 @@ class DecisionFirewall:
             "employee_id": employee_id,
             "recommended_action": recommended_action,
             "model_agreement": agreement,
+            "robustness_status": robustness_status,
             "pipeline_checks": pipeline_checks,
         }
 

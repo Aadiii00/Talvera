@@ -26,15 +26,45 @@ FEATURE_COLUMNS: List[str] = [
     "recent_policy_change",
 ]
 
+DEFAULT_FEATURE_VALUES = {
+    "tenure_years": 3.0,
+    "performance_score": 3.5,
+    "engagement_score": 6.5,
+    "absenteeism_rate": 2.0,
+    "workload_index": 1.2,
+    "salary": 120000.0,
+    "pay_vs_market": 1.0,
+    "promotions_last_3_years": 0,
+    "training_hours": 15.0,
+    "skill_growth_score": 50.0,
+    "manager_change_recent": 0,
+    "manager_relationship_score": 7.0,
+    "job_satisfaction": 7.0,
+    "overtime_hours": 5.0,
+    "remote_work_ratio": 0.5,
+    "projects_count": 2,
+    "critical_project": 0,
+    "is_critical_skill_scarcity": 0,
+    "recent_policy_change": 0,
+}
+
 def prepare_features(df: pd.DataFrame) -> pd.DataFrame:
     X = df.copy()
-    
-    # Transform booleans / categories to numeric
+
+    for col in FEATURE_COLUMNS:
+        if col not in X.columns:
+            if col == "is_critical_skill_scarcity":
+                X["is_critical_skill_scarcity"] = (X.get("skill_scarcity", "Low") == "Critical").astype(int) if "skill_scarcity" in X.columns else 0
+            else:
+                X[col] = DEFAULT_FEATURE_VALUES.get(col, 0)
+
+    # Convert booleans to int
     X["manager_change_recent"] = X["manager_change_recent"].astype(int)
     X["critical_project"] = X["critical_project"].astype(int)
     X["recent_policy_change"] = X["recent_policy_change"].astype(int)
-    X["is_critical_skill_scarcity"] = (X["skill_scarcity"] == "Critical").astype(int)
-    
+    if "is_critical_skill_scarcity" in X.columns:
+        X["is_critical_skill_scarcity"] = X["is_critical_skill_scarcity"].astype(int)
+
     return X[FEATURE_COLUMNS]
 
 def get_feature_schema():

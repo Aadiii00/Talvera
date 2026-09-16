@@ -11,17 +11,17 @@ class ModelConflictDetector:
     ) -> List[Dict[str, Any]]:
         conflicts = []
 
-        # 1. RISK_VS_TREND: High risk but trajectory is improving
+        # 1. RISK_VS_TRAJECTORY / RISK_VS_TREND
         if risk_score >= 60.0 and trajectory_class == "IMPROVING":
             conflicts.append({
-                "conflict_type": "RISK_VS_TREND",
+                "conflict_type": "RISK_VS_TRAJECTORY",
                 "affected_signals": ["XGBoost Risk (High)", "Temporal Trajectory (Improving)"],
                 "severity": "Medium",
                 "required_action": "REVIEW",
                 "explanation": "High baseline attrition risk contradicts an improving recent trajectory. Review before taking aggressive intervention."
             })
 
-        # 2. RISK_VS_ANOMALY: Low risk but high behavioral anomaly
+        # 2. RISK_VS_ANOMALY
         if risk_score < 40.0 and is_anomaly:
             conflicts.append({
                 "conflict_type": "RISK_VS_ANOMALY",
@@ -31,7 +31,7 @@ class ModelConflictDetector:
                 "explanation": "Low attrition risk model prediction conflicts with a detected behavioral anomaly spike."
             })
 
-        # 3. MODEL_VS_GRAPH: Low risk but single point of failure in graph
+        # 3. MODEL_VS_GRAPH
         if risk_score < 45.0 and is_single_point_of_failure:
             conflicts.append({
                 "conflict_type": "MODEL_VS_GRAPH",
