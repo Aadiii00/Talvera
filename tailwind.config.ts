@@ -19,7 +19,24 @@ export default {
 			}
 		},
 		extend: {
+			fontFamily: {
+				sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif']
+			},
 			colors: {
+				status: {
+					teal: 'hsl(var(--status-teal))',
+					'teal-soft': 'hsl(var(--status-teal-soft))',
+					pink: 'hsl(var(--status-pink))',
+					'pink-soft': 'hsl(var(--status-pink-soft))',
+					orange: 'hsl(var(--status-orange))',
+					'orange-soft': 'hsl(var(--status-orange-soft))',
+					green: 'hsl(var(--status-green))',
+					'green-soft': 'hsl(var(--status-green-soft))',
+					blue: 'hsl(var(--status-blue))',
+					'blue-soft': 'hsl(var(--status-blue-soft))',
+					purple: 'hsl(var(--status-purple))',
+					'purple-soft': 'hsl(var(--status-purple-soft))'
+				},
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',
