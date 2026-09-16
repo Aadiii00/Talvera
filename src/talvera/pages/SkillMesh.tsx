@@ -1,17 +1,26 @@
 import { PageHeader } from "@/talvera/components/shared/PageHeader";
 import { ChartCard } from "@/talvera/components/shared/ChartCard";
 import { StatusPill } from "@/talvera/components/shared/StatusPill";
-import { NetworkGraph, type GraphEdge, type GraphNode } from "@/talvera/components/shared/NetworkGraph";
+import { NetworkGraph, type GraphEdge, type GraphNode, type GraphColumn } from "@/talvera/components/shared/NetworkGraph";
 import { skills } from "@/talvera/data/skills";
+
+const columns: GraphColumn[] = [
+  { label: "EMPLOYEES", x: 12 },
+  { label: "CRITICAL SKILLS", x: 37 },
+  { label: "TEAMS", x: 62 },
+  { label: "PROJECTS", x: 87 },
+];
 
 const skillOrder = skills.map((skill) => skill.name);
 
 function buildMeshGraph(): { nodes: GraphNode[]; edges: GraphEdge[] } {
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
+
   const uniqueTeams = Array.from(new Set(skills.flatMap((s) => s.teams)));
   const uniqueProjects = Array.from(new Set(skills.flatMap((s) => s.projects)));
 
+  // Evenly spaced vertical layout
   skills.forEach((skill, index) => {
     const y = 8 + index * (84 / Math.max(1, skills.length - 1));
     const skillId = `skill-${skill.name}`;
@@ -19,7 +28,8 @@ function buildMeshGraph(): { nodes: GraphNode[]; edges: GraphEdge[] } {
       id: skillId,
       label: skill.name,
       sublabel: `${skill.employeesWithSkill} people · ${skill.coverage}% coverage`,
-      x: 40,
+      badge: skill.singlePointOfFailure ? "SPOF" : undefined,
+      x: 37,
       y,
       tone: skill.scarcity === "Critical" ? "pink" : skill.scarcity === "High" ? "orange" : "blue",
       emphasis: skill.singlePointOfFailure,
@@ -47,13 +57,13 @@ function buildMeshGraph(): { nodes: GraphNode[]; edges: GraphEdge[] } {
   });
 
   uniqueTeams.forEach((teamName, index) => {
-    const y = 10 + index * (80 / Math.max(1, uniqueTeams.length - 1));
-    nodes.push({ id: `team-${teamName}`, label: teamName, sublabel: "Team", x: 68, y, tone: "purple" });
+    const y = 14 + index * (72 / Math.max(1, uniqueTeams.length - 1));
+    nodes.push({ id: `team-${teamName}`, label: teamName, sublabel: "Team", x: 62, y, tone: "purple" });
   });
 
   uniqueProjects.forEach((projectName, index) => {
     const y = 10 + index * (80 / Math.max(1, uniqueProjects.length - 1));
-    nodes.push({ id: `project-${projectName}`, label: projectName, sublabel: "Project", x: 94, y, tone: "teal" });
+    nodes.push({ id: `project-${projectName}`, label: projectName, sublabel: "Project", x: 87, y, tone: "teal" });
   });
 
   return { nodes, edges };
@@ -66,8 +76,8 @@ export default function SkillMesh() {
     <div className="flex flex-col gap-6 pb-10">
       <PageHeader title="Workforce Skill Mesh" subtitle="Map critical skills across people, teams and projects." />
 
-      <ChartCard title="Employee → Skill → Team → Project" subtitle="Single points of failure are highlighted in navy.">
-        <NetworkGraph nodes={meshNodes} edges={meshEdges} height={520} />
+      <ChartCard title="Employee → Skill → Team → Project" subtitle="Hover any node to trace its connections. Single points of failure are highlighted in navy with a SPOF badge.">
+        <NetworkGraph nodes={meshNodes} edges={meshEdges} columns={columns} height={540} />
       </ChartCard>
 
       <ChartCard title="Skill Coverage & Scarcity" subtitle="Critical skills with low coverage create organizational exposure">
