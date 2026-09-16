@@ -10,6 +10,7 @@ import {
   ScatterChart,
   XAxis,
   YAxis,
+  Tooltip,
   ResponsiveContainer,
 } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,8 +19,8 @@ import { ChartCard } from "@/talvera/components/shared/ChartCard";
 import { StatusPill } from "@/talvera/components/shared/StatusPill";
 import { employees } from "@/talvera/data/employees";
 import { departments } from "@/talvera/data/departments";
-import { toneColor, zoneTone, trajectoryTone } from "@/talvera/lib/status";
-import type { RiskZone } from "@/talvera/data/types";
+import { toneColor, zoneTone, trajectoryTone, decisionTone } from "@/talvera/lib/status";
+import type { RiskZone, Trajectory } from "@/talvera/data/types";
 
 const zones: { name: RiskZone; label: string; desc: string; tone: "blue" | "purple" | "orange" | "pink" }[] = [
   { name: "Monitor", label: "Monitor Zone", desc: "Low Risk · Low Exposure", tone: "blue" },
@@ -33,6 +34,7 @@ export default function RiskRadar() {
   const [department, setDepartment] = useState("All");
   const [trajectoryFilter, setTrajectoryFilter] = useState("All");
   const [zoneFilter, setZoneFilter] = useState("All");
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const filteredEmployees = employees.filter((e) => {
     if (department !== "All" && e.department !== department) return false;
@@ -49,8 +51,10 @@ export default function RiskRadar() {
     initials: employee.initials,
     role: employee.role,
     department: employee.department,
+    team: employee.team,
     trajectory: employee.trajectory,
     topFactor: employee.topFactor,
+    decision: employee.decision,
     zone: employee.zone,
     color: toneColor[zoneTone[employee.zone]],
     softColor: `hsl(var(--status-${zoneTone[employee.zone]}-soft))`,
@@ -93,7 +97,7 @@ export default function RiskRadar() {
       {/* Main Scatter Radar */}
       <ChartCard
         title="Personal Risk × Organizational Exposure"
-        subtitle="Click any employee dot to view full intelligence profile."
+        subtitle="Hover employee points for full intelligence preview. Click to view complete profile."
       >
         <div className="relative aspect-auto h-[440px] w-full">
           {/* Quadrant Watermark Badges */}
@@ -141,20 +145,47 @@ export default function RiskRadar() {
                 label={{ value: "← Org. Exposure (%)", angle: -90, position: "insideLeft", fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
               />
 
+              <Tooltip
+                cursor={{ strokeDasharray: "3 3", stroke: "hsl(var(--muted-foreground))", strokeWidth: 0.8 }}
+                content={<IntelligenceTooltip />}
+              />
+
               <Scatter
                 data={scatterData}
                 onClick={(entry) => navigate(`/talvera/employees/${entry.id}`)}
+                onMouseEnter={(entry) => setHoveredId(entry.id)}
+                onMouseLeave={() => setHoveredId(null)}
                 shape={(props: { cx?: number; cy?: number; payload?: (typeof scatterData)[number] }) => {
                   const { cx = 0, cy = 0, payload } = props;
                   if (!payload) return null;
+                  const isHovered = hoveredId === payload.id;
+                  const isDimmed = hoveredId !== null && !isHovered;
                   const isCritical = payload.zone === "Critical";
+
                   return (
-                    <g className="cursor-pointer transition-transform hover:scale-125">
-                      {isCritical && (
+                    <g className="cursor-pointer transition-all duration-200">
+                      {isHovered && (
+                        <circle cx={cx} cy={cy} r={22} fill={payload.color} opacity={0.25} />
+                      )}
+                      {isCritical && !isHovered && (
                         <circle cx={cx} cy={cy} r={14} fill={payload.color} opacity={0.2} className="animate-ping" />
                       )}
-                      <circle cx={cx} cy={cy} r={10} fill={payload.softColor} stroke={payload.color} strokeWidth={2} />
-                      <circle cx={cx} cy={cy} r={4} fill={payload.color} />
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={isHovered ? 13 : 10}
+                        fill={payload.softColor}
+                        stroke={payload.color}
+                        strokeWidth={isHovered ? 3 : 2}
+                        opacity={isDimmed ? 0.35 : 1}
+                      />
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={isHovered ? 5 : 4}
+                        fill={payload.color}
+                        opacity={isDimmed ? 0.35 : 1}
+                      />
                     </g>
                   );
                 }}
@@ -205,6 +236,75 @@ export default function RiskRadar() {
           </ResponsiveContainer>
         </div>
       </ChartCard>
+    </div>
+  );
+}
+
+function IntelligenceTooltip({ active, payload }: { active?: boolean; payload?: { payload: (typeof scatterData)[number] }[] }) {
+  if (!active || !payload || !payload.length) return null;
+  const data = payload[0].payload;
+  const emp = employees.find((e) => e.id === data.id) || data;
+
+  return (
+    <div className="z-50 min-w-[270px] max-w-[300px] rounded-2xl border border-border/90 bg-card/95 p-4 shadow-2xl backdrop-blur-md transition-all duration-150">
+      {/* Employee Header */}
+      <div className="flex items-center gap-3 border-b border-border/60 pb-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-extrabold text-foreground border border-border">
+          {emp.initials || "HR"}
+        </div>
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="truncate text-sm font-bold text-foreground">{emp.name}</p>
+          <p className="truncate text-xs font-medium text-muted-foreground">{emp.role}</p>
+          <p className="truncate text-[10.5px] text-muted-foreground/80">{emp.department} · {emp.team}</p>
+        </div>
+      </div>
+
+      {/* Metrics Row */}
+      <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-secondary/60 p-2.5">
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Personal Risk</p>
+          <p className="text-base font-extrabold text-status-pink">{emp.attritionRisk}%</p>
+        </div>
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Org Exposure</p>
+          <p className="text-base font-extrabold text-foreground">{emp.orgExposure}%</p>
+        </div>
+      </div>
+
+      {/* Trajectory & Risk Change */}
+      <div className="mt-3 flex items-center justify-between text-xs">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Trajectory</span>
+          <StatusPill tone={trajectoryTone[emp.trajectory as Trajectory] || "blue"}>
+            {emp.trajectory}
+          </StatusPill>
+        </div>
+        <span className="text-[11px] font-semibold text-status-pink">+12.4%</span>
+      </div>
+
+      {/* Details List */}
+      <div className="mt-2.5 space-y-1.5 border-t border-border/50 pt-2.5 text-xs">
+        {emp.topFactor && (
+          <div className="flex items-center justify-between">
+            <span className="text-[10.5px] font-medium text-muted-foreground">Top Signal</span>
+            <span className="font-semibold text-foreground">{emp.topFactor}</span>
+          </div>
+        )}
+        <div className="flex items-center justify-between">
+          <span className="text-[10.5px] font-medium text-muted-foreground">Critical Skill</span>
+          <span className="font-semibold text-foreground">Kubernetes</span>
+        </div>
+        {emp.decision && (
+          <div className="flex items-center justify-between">
+            <span className="text-[10.5px] font-medium text-muted-foreground">Decision State</span>
+            <StatusPill tone={decisionTone[emp.decision] || "teal"}>{emp.decision}</StatusPill>
+          </div>
+        )}
+      </div>
+
+      <p className="mt-3 text-center text-[10px] font-semibold text-muted-foreground/80 italic">
+        Click to view full intelligence profile →
+      </p>
     </div>
   );
 }
