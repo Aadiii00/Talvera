@@ -2,7 +2,7 @@ import os
 import chromadb
 from typing import Dict, Any, List
 from backend.app.models.domain import Policy
-from backend.app.database.session import SessionLocal
+from backend.app.database.session import SessionLocal, Base, engine
 
 class PolicyRAGService:
     def __init__(self):
@@ -11,14 +11,11 @@ class PolicyRAGService:
         self.seed_documents()
 
     def seed_documents(self):
+        Base.metadata.create_all(bind=engine)
         db = SessionLocal()
         try:
             policies = db.query(Policy).all()
             if not policies:
-                from backend.app.database.session import Base, engine
-                from backend.app.models.domain import Policy
-                Base.metadata.create_all(bind=engine)
-                
                 default_policies = [
                     Policy(id="pol-1", title="Compensation Band Adjustment Guidelines", category="Compensation", snippet="Managers may request a mid-cycle band adjustment when an employee's total compensation falls more than 8% below the internal market midpoint for their level.", source="Compensation Policy Handbook — Section 4.2"),
                     Policy(id="pol-2", title="Workload & On-Call Rotation Fairness Policy", category="Performance", snippet="On-call rotations should not exceed 1.5x the team average over any rolling 6-week period without manager escalation and workload rebalancing.", source="Workforce Governance Handbook — Section 2.1"),
@@ -35,7 +32,7 @@ class PolicyRAGService:
             documents = [f"{p.title}: {p.snippet}" for p in policies]
             metadatas = [{"title": p.title, "category": p.category, "source": p.source} for p in policies]
 
-            if len(ids) > 0:
+            if len(ids) > 0 and self.collection.count() == 0:
                 self.collection.add(
                     ids=ids,
                     documents=documents,

@@ -2,7 +2,12 @@ from typing import Dict, Any, List
 
 class DecisionFirewall:
     @staticmethod
-    def evaluate_decision(employee_id: str, risk_score: float, evidence_count: int, confidence_pct: float) -> Dict[str, Any]:
+    def evaluate_decision(
+        employee_id: str,
+        risk_score: float,
+        evidence_count: int = 5,
+        confidence_pct: float = 88.0
+    ) -> Dict[str, Any]:
         pipeline_checks = []
         
         # 1. Evidence Check
