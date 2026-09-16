@@ -62,6 +62,7 @@ class PortfolioOptimizationRequest(BaseModel):
     training_capacity: Optional[int] = 50
     hiring_available: Optional[int] = 20
     salary_limit: Optional[float] = 30000.0
+    selected_interventions: Optional[List[str]] = None
 
 class PolicySearchRequest(BaseModel):
     query: str
@@ -223,7 +224,13 @@ def compare_scenarios(horizon_days: Optional[int] = 90):
 @router.post("/optimization/interventions")
 @router.post("/optimization/portfolio")
 def optimize_portfolio(req: PortfolioOptimizationRequest):
-    res = intervention_optimizer.optimize_portfolio(req.budget_limit, req.training_capacity, req.hiring_available, req.salary_limit)
+    res = intervention_optimizer.optimize_portfolio(
+        budget_limit=req.budget_limit,
+        training_capacity=req.training_capacity,
+        hiring_available=req.hiring_available,
+        salary_limit=req.salary_limit,
+        selected_names=req.selected_interventions
+    )
     res["recommended_interventions"] = res["selected_interventions"]
     return res
 
