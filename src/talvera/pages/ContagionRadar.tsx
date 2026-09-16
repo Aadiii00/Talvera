@@ -1,16 +1,60 @@
-import { useState } from "react";
-import { AlertOctagon, Send } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { AlertOctagon, CheckCircle2, Clock, Send, ShieldCheck, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PageHeader } from "@/talvera/components/shared/PageHeader";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { ChartCard } from "@/talvera/components/shared/ChartCard";
 import { NetworkGraph } from "@/talvera/components/shared/NetworkGraph";
+import { StatusPill } from "@/talvera/components/shared/StatusPill";
 import { contagionProfiles, contagionTriggerIds } from "@/talvera/data/contagion";
 import { getEmployeeById } from "@/talvera/data/employees";
 
+const proposedActions = [
+  "Reassign critical workload across team members",
+  "Identify and assign backup owners for proprietary repos",
+  "Schedule 1:1 career conversations with affected teammates",
+  "Enable 30-day team stability monitoring",
+];
+
 export default function ContagionRadar() {
+  const navigate = useNavigate();
   const [triggerId, setTriggerId] = useState("vikram-iyer");
+  const [preflightOpen, setPreflightOpen] = useState(false);
+  const [workflowStatus, setWorkflowStatus] = useState<"IDLE" | "EXECUTING" | "COMPLETED">("IDLE");
+  const [workflowId, setWorkflowId] = useState("");
+  const [activeStep, setActiveStep] = useState(0);
+
   const profile = contagionProfiles[triggerId];
+
+  // Auto-advance simulated steps during EXECUTING state
+  useEffect(() => {
+    if (workflowStatus === "EXECUTING") {
+      const timer = setInterval(() => {
+        setActiveStep((prev) => {
+          if (prev < 4) return prev + 1;
+          setWorkflowStatus("COMPLETED");
+          clearInterval(timer);
+          return 4;
+        });
+      }, 1200);
+      return () => clearInterval(timer);
+    }
+  }, [workflowStatus]);
+
+  const handleApproveAndDispatch = () => {
+    setPreflightOpen(false);
+    setWorkflowId(`wf-stab-${Math.random().toString(36).substring(2, 8)}`);
+    setActiveStep(1);
+    setWorkflowStatus("EXECUTING");
+  };
 
   return (
     <div className="flex flex-col gap-6 pb-10">
@@ -30,7 +74,14 @@ export default function ContagionRadar() {
           <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Trigger Employee
           </span>
-          <Select value={triggerId} onValueChange={setTriggerId}>
+          <Select
+            value={triggerId}
+            onValueChange={(val) => {
+              setTriggerId(val);
+              setWorkflowStatus("IDLE");
+              setActiveStep(0);
+            }}
+          >
             <SelectTrigger className="h-9 w-[180px] rounded-full bg-card text-sm">
               <SelectValue />
             </SelectTrigger>
@@ -45,7 +96,8 @@ export default function ContagionRadar() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl bg-gradient-critical text-white">
+      {/* Main Alert & Dispatch Banner */}
+      <div className="overflow-hidden rounded-2xl bg-gradient-critical text-white shadow-xl">
         <div className="grid grid-cols-1 gap-6 p-6 lg:grid-cols-[1.6fr_1fr] lg:p-8">
           <div className="space-y-4">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-status-pink">
@@ -55,16 +107,53 @@ export default function ContagionRadar() {
             <p className="text-xs font-semibold uppercase tracking-wide text-white/60">{profile.department}</p>
             <h2 className="max-w-xl text-2xl font-bold leading-snug">{profile.message}</h2>
             <p className="max-w-lg text-sm leading-relaxed text-white/70">{profile.supportingText}</p>
-            <Button className="mt-2 rounded-full bg-white text-primary hover:bg-white/90">
-              <Send className="h-4 w-4" />
-              Dispatch Team Stabilization Protocol
-            </Button>
+
+            {/* Action State Switcher */}
+            {workflowStatus === "IDLE" ? (
+              <Button
+                onClick={() => setPreflightOpen(true)}
+                className="mt-2 rounded-full bg-white text-primary hover:bg-white/90 font-bold"
+              >
+                <Send className="h-4 w-4" />
+                Dispatch Team Stabilization Protocol
+              </Button>
+            ) : workflowStatus === "EXECUTING" ? (
+              <div className="mt-3 space-y-3 rounded-2xl bg-white/10 p-4 backdrop-blur-md border border-white/20">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-status-teal">
+                    <Clock className="h-4 w-4 animate-spin" />
+                    Team Stabilization: Executing
+                  </span>
+                  <span className="text-[11px] text-white/60">ID: {workflowId}</span>
+                </div>
+                <ProgressSteps activeStep={activeStep} />
+              </div>
+            ) : (
+              <div className="mt-3 space-y-3 rounded-2xl bg-white/10 p-4 backdrop-blur-md border border-white/20">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-status-green">
+                    <CheckCircle2 className="h-4 w-4 text-status-green" />
+                    Team Stabilization: Completed
+                  </span>
+                  <span className="text-[11px] text-white/60">ID: {workflowId}</span>
+                </div>
+                <ProgressSteps activeStep={4} />
+                <Button
+                  onClick={() => navigate("/talvera/memory")}
+                  className="mt-2 rounded-full bg-status-green text-white hover:bg-status-green/90 font-bold text-xs"
+                >
+                  View Outcome in Organizational Memory
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+
             <p className="text-[11px] text-white/50">
               Decision Guard: Automatic cross-department contagion propagation analysis active
             </p>
           </div>
 
-          <div className="flex flex-col justify-center gap-4 rounded-2xl bg-white/5 p-5">
+          <div className="flex flex-col justify-center gap-4 rounded-2xl bg-white/5 p-5 border border-white/10">
             <div>
               <p className="text-4xl font-extrabold">{profile.cascadeProbability}%</p>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-white/60">Cascade Probability</p>
@@ -115,6 +204,111 @@ export default function ContagionRadar() {
           </div>
         </ChartCard>
       </div>
+
+      {/* Pre-Flight Review Modal */}
+      <Dialog open={preflightOpen} onOpenChange={setPreflightOpen}>
+        <DialogContent className="max-w-xl rounded-2xl p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <ShieldCheck className="h-5 w-5 text-status-teal" />
+              Team Stabilization Protocol
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Pre-flight decision review &amp; Decision Firewall evaluation for {profile.department}.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Live Context */}
+          <div className="grid grid-cols-3 gap-2.5 rounded-xl bg-secondary/60 p-3 text-xs">
+            <div>
+              <p className="text-[10px] font-bold uppercase text-muted-foreground">Department</p>
+              <p className="font-bold text-foreground">{profile.department}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase text-muted-foreground">Teammates At Risk</p>
+              <p className="font-bold text-status-pink">{profile.teammatesImpacted} teammates</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase text-muted-foreground">Cascade Risk</p>
+              <p className="font-bold text-foreground">{profile.cascadeProbability}%</p>
+            </div>
+          </div>
+
+          {/* Proposed Actions */}
+          <div className="space-y-2">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Proposed Actions</p>
+            <div className="space-y-1.5 rounded-xl border border-border bg-card p-3 text-xs">
+              {proposedActions.map((action, idx) => (
+                <div key={idx} className="flex items-center gap-2 text-foreground">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-status-teal" />
+                  <span>{action}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Decision Guard Check */}
+          <div className="flex items-center justify-between rounded-xl bg-status-teal-soft p-3 text-xs text-status-teal">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 shrink-0" />
+              <span className="font-bold">Decision Guard Status: PASS</span>
+            </div>
+            <StatusPill tone="teal" dot>
+              88% Confidence
+            </StatusPill>
+          </div>
+
+          <DialogFooter className="flex items-center justify-between gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPreflightOpen(false);
+                navigate("/talvera/digital-twin");
+              }}
+              className="rounded-full text-xs"
+            >
+              Review Simulation
+            </Button>
+            <Button onClick={handleApproveAndDispatch} className="rounded-full bg-primary text-primary-foreground font-bold text-xs">
+              <Send className="h-3.5 w-3.5" />
+              Approve &amp; Dispatch Workflow
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function ProgressSteps({ activeStep }: { activeStep: number }) {
+  const steps = [
+    "Risk assessment completed",
+    "Workload redistribution task created",
+    "Manager notification sent",
+    "HR follow-up tasks scheduled",
+    "30-day stability monitoring active",
+  ];
+
+  return (
+    <div className="space-y-1.5 text-xs text-white/90">
+      {steps.map((label, idx) => {
+        const isDone = idx < activeStep;
+        const isCurrent = idx === activeStep;
+        return (
+          <div key={label} className="flex items-center gap-2">
+            {isDone ? (
+              <CheckCircle2 className="h-3.5 w-3.5 text-status-green" />
+            ) : isCurrent ? (
+              <Clock className="h-3.5 w-3.5 text-status-teal animate-spin" />
+            ) : (
+              <span className="h-3.5 w-3.5 rounded-full border border-white/30" />
+            )}
+            <span className={isDone ? "opacity-90 font-medium" : isCurrent ? "font-bold text-white" : "opacity-50"}>
+              {label}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
