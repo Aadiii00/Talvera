@@ -9,8 +9,5 @@ export * from "./contagion";
 export * from "./digitalTwin";
 export * from "./decisionGuard";
 export * from "./memory";
-export * from "./evidenceGraph";
-export * from "./techFoundation";
-export * from "./aiControlRoom";
 export * from "./askTalvera";
 export * from "./skillIntelligence";
