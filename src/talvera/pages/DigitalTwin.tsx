@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, Play, RefreshCw, ArrowRight, ShieldCheck, Sparkles, Layers } from "lucide-react";
+import { Loader2, Play, ShieldCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -7,26 +7,18 @@ import { PageHeader } from "@/talvera/components/shared/PageHeader";
 import { MetricCard } from "@/talvera/components/shared/MetricCard";
 import { ChartCard } from "@/talvera/components/shared/ChartCard";
 import { StatusPill } from "@/talvera/components/shared/StatusPill";
-import { bestAvailableFuture, scenarioOptions, timeHorizons } from "@/talvera/data/digitalTwin";
+import {
+  bestAvailableFuture,
+  scenarioOptions,
+  timeHorizons,
+  getRealDigitalTwinState,
+  simulateDigitalTwinScenario,
+  getRealWorldComparisons,
+  type DigitalTwinStateSummary,
+  type DigitalTwinDiffResult,
+} from "@/talvera/data/digitalTwin";
 
 const disruptionTone = { Low: "green", Medium: "orange", High: "pink" } as const;
-
-interface DigitalTwinStateSummary {
-  employee_count: number;
-  team_count: number;
-  department_count: number;
-  critical_skills_count?: number;
-  single_points_of_failure?: string[];
-  project_count?: number;
-  high_risk_population: number;
-  attrition_risk?: number;
-  team_health?: number;
-  organizational_exposure: number;
-  skill_exposure?: number;
-  project_exposure?: number;
-  cascade_exposure?: number;
-  operational_disruption?: "Low" | "Medium" | "High";
-}
 
 interface WorldComparison {
   label: string;
@@ -39,10 +31,10 @@ export default function DigitalTwin() {
   const [horizon, setHorizon] = useState<typeof timeHorizons[number]>("90D");
 
   const [loading, setLoading] = useState(false);
-  const [currState, setCurrState] = useState<DigitalTwinStateSummary | null>(null);
-  const [simState, setSimState] = useState<DigitalTwinStateSummary | null>(null);
-  const [diff, setDiff] = useState<Record<string, { base: number; simulated: number; delta?: number; tag: string }> | null>(null);
-  const [worlds, setWorlds] = useState<WorldComparison[]>([]);
+  const [loadingStep, setLoadingStep] = useState("CLONING ORGANIZATION...");
+  const [currState, setCurrState] = useState<DigitalTwinStateSummary>(getRealDigitalTwinState());
+  const [diff, setDiff] = useState<DigitalTwinDiffResult | null>(null);
+  const [worlds, setWorlds] = useState<WorldComparison[]>(getRealWorldComparisons(90));
   const [activeAction, setActiveAction] = useState<string | null>(null);
 
   // Load current state on mount
@@ -53,24 +45,22 @@ export default function DigitalTwin() {
         if (data) setCurrState(data);
       })
       .catch(() => {
-        setCurrState({
-          employee_count: 812,
-          team_count: 46,
-          department_count: 6,
-          critical_skills_count: 7,
-          high_risk_population: 203,
-          organizational_exposure: 74.2,
-          cascade_exposure: 34.0,
-        });
+        setCurrState(getRealDigitalTwinState());
       });
   }, []);
 
   // Run simulation scenario or compare worlds
   const handleRunSimulation = async (customScenario?: string, customActions?: Record<string, unknown>) => {
     setLoading(true);
+    setLoadingStep("CLONING ORGANIZATION...");
+
     const targetScenario = customScenario || scenario;
 
     try {
+      setTimeout(() => setLoadingStep("APPLYING SCENARIO TRANSFORMATIONS..."), 120);
+      setTimeout(() => setLoadingStep("RECALCULATING RISK & DEPENDENCIES..."), 280);
+      setTimeout(() => setLoadingStep("SIMULATING CASCADE & NEW STATE..."), 420);
+
       // 1. Simulate scenario
       const simRes = await fetch("http://localhost:8000/api/digital-twin/simulate", {
         method: "POST",
@@ -84,8 +74,10 @@ export default function DigitalTwin() {
 
       if (simRes.ok) {
         const simData = await simRes.json();
-        setSimState(simData.simulated_state);
         setDiff(simData.diff);
+      } else {
+        const localSim = simulateDigitalTwinScenario(targetScenario, customActions);
+        setDiff(localSim.diff);
       }
 
       // 2. Compare worlds
@@ -100,24 +92,16 @@ export default function DigitalTwin() {
       if (compRes.ok) {
         const compData = await compRes.json();
         setWorlds(compData.worlds || []);
+      } else {
+        setWorlds(getRealWorldComparisons(parseInt(horizon) || 90));
       }
     } catch {
-      // Fallback local state if server offline
-      setSimState({
-        employee_count: customActions?.remove_employee ? 811 : 813,
-        team_count: 46,
-        department_count: 6,
-        high_risk_population: 168,
-        attrition_risk: 21.0,
-        team_health: 83.2,
-        organizational_exposure: 58.4,
-        skill_exposure: 32.0,
-        project_exposure: 28.0,
-        cascade_exposure: 18.0,
-        operational_disruption: "Low",
-      });
+      // Local deterministic simulation fallback
+      const localSim = simulateDigitalTwinScenario(targetScenario, customActions);
+      setDiff(localSim.diff);
+      setWorlds(getRealWorldComparisons(parseInt(horizon) || 90));
     } finally {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 200);
     }
   };
 
@@ -132,12 +116,12 @@ export default function DigitalTwin() {
 
       {/* Top Current State Metrics */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-        <MetricCard label="Employees" value={currState?.employee_count || 812} />
-        <MetricCard label="Teams" value={currState?.team_count || 46} />
-        <MetricCard label="Critical Skills" value={currState?.critical_skills_count || 7} />
-        <MetricCard label="Projects" value={currState?.project_count || 28} />
-        <MetricCard label="High Risk" value={currState?.high_risk_population || 203} />
-        <MetricCard label="Cascade Exposure" value={`${currState?.cascade_exposure || 34}%`} />
+        <MetricCard label="Employees" value={currState.employee_count} />
+        <MetricCard label="Teams" value={currState.team_count} />
+        <MetricCard label="Critical Skills" value={currState.critical_skills_count} />
+        <MetricCard label="Projects" value={currState.project_count} />
+        <MetricCard label="High Risk" value={currState.high_risk_population} />
+        <MetricCard label="Cascade Exposure" value={`${currState.cascade_exposure}%`} />
       </div>
 
       {/* Interactive Simulation Sandbox Actions */}
@@ -264,62 +248,38 @@ export default function DigitalTwin() {
       {/* World Comparison Grid */}
       <ChartCard title="World Comparison" subtitle={`4 distinct simulated organization states over ${horizon}`}>
         {loading ? (
-          <div className="flex h-32 items-center justify-center gap-2 text-xs text-muted-foreground">
+          <div className="flex h-36 items-center justify-center gap-3 text-xs font-semibold text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin text-status-teal" />
-            Simulating world states on cloned Digital Twin graph...
+            <span>{loadingStep}</span>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-            {worlds.length > 0 ? (
-              worlds.map((world) => (
-                <Card
-                  key={world.label}
-                  className={cn(
-                    "transition-all hover:border-primary/40",
-                    world.label.includes("Optimized") ? "border-status-teal/50 bg-status-teal-soft shadow-md" : "border-border bg-card"
-                  )}
-                >
-                  <CardContent className="space-y-3 p-4 text-xs">
-                    <p className="font-bold uppercase tracking-wide text-foreground text-[11px]">{world.label}</p>
-                    <MetricRow label="Employees" value={`${world.summary.employee_count}`} />
-                    <MetricRow label="Attrition Risk" value={`${world.summary.attrition_risk || 21}%`} />
-                    <MetricRow label="Team Health" value={`${world.summary.team_health || 83}%`} />
-                    <MetricRow label="Skill Exposure" value={`${world.summary.skill_exposure || 32}%`} />
-                    <MetricRow label="Project Exposure" value={`${world.summary.project_exposure || 28}%`} />
-                    <MetricRow label="Cascade Exposure" value={`${world.summary.cascade_exposure || 18}%`} />
-                    <MetricRow label="Estimated Cost" value={world.cost_inr} />
-                    <div className="flex items-center justify-between border-t border-border/40 pt-2 text-[11px]">
-                      <span className="text-muted-foreground">Disruption</span>
-                      <StatusPill tone={disruptionTone[world.summary.operational_disruption || "Low"]}>
-                        {world.summary.operational_disruption || "Low"}
-                      </StatusPill>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              /* Static comparison cards if server offline */
-              [
-                { label: "Current World", risk: "34%", health: "61%", skill: "58%", cost: "₹0", disruption: "Medium" },
-                { label: "Scenario A (Workload -15%)", risk: "26%", health: "70%", skill: "46%", cost: "₹4,20,000", disruption: "Medium" },
-                { label: "Scenario B (Org Workload -20%)", risk: "21%", health: "75%", skill: "38%", cost: "₹6,80,000", disruption: "Low" },
-                { label: "Optimized World (Hiring + Workload)", risk: "15%", health: "84%", skill: "24%", cost: "₹9,10,000", disruption: "Low" },
-              ].map((w) => (
-                <Card key={w.label} className={w.label.includes("Optimized") ? "border-status-teal/50 bg-status-teal-soft" : undefined}>
-                  <CardContent className="space-y-3 p-4 text-xs">
-                    <p className="font-bold uppercase tracking-wide text-foreground text-[11px]">{w.label}</p>
-                    <MetricRow label="Attrition Risk" value={w.risk} />
-                    <MetricRow label="Team Health" value={w.health} />
-                    <MetricRow label="Skill Exposure" value={w.skill} />
-                    <MetricRow label="Cost" value={w.cost} />
-                    <div className="flex items-center justify-between border-t border-border/40 pt-2 text-[11px]">
-                      <span className="text-muted-foreground">Disruption</span>
-                      <StatusPill tone={disruptionTone[w.disruption as "Low" | "Medium" | "High"]}>{w.disruption}</StatusPill>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
+            {worlds.map((world) => (
+              <Card
+                key={world.label}
+                className={cn(
+                  "transition-all hover:border-primary/40",
+                  world.label.includes("Optimized") ? "border-status-teal/50 bg-status-teal-soft shadow-md" : "border-border bg-card"
+                )}
+              >
+                <CardContent className="space-y-3 p-4 text-xs">
+                  <p className="font-bold uppercase tracking-wide text-foreground text-[11px]">{world.label}</p>
+                  <MetricRow label="Employees" value={`${world.summary.employee_count}`} />
+                  <MetricRow label="Attrition Risk" value={`${world.summary.attrition_risk}%`} />
+                  <MetricRow label="Team Health" value={`${world.summary.team_health}%`} />
+                  <MetricRow label="Skill Exposure" value={`${world.summary.skill_exposure}%`} />
+                  <MetricRow label="Project Exposure" value={`${world.summary.project_exposure}%`} />
+                  <MetricRow label="Cascade Exposure" value={`${world.summary.cascade_exposure}%`} />
+                  <MetricRow label="Estimated Cost" value={world.cost_inr} />
+                  <div className="flex items-center justify-between border-t border-border/40 pt-2 text-[11px]">
+                    <span className="text-muted-foreground">Disruption</span>
+                    <StatusPill tone={disruptionTone[world.summary.operational_disruption || "Low"]}>
+                      {world.summary.operational_disruption || "Low"}
+                    </StatusPill>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         )}
       </ChartCard>

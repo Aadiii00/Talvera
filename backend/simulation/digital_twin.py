@@ -2,6 +2,7 @@ import copy
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
 from backend.app.models.domain import Employee, Department, Team, Skill, Project
+from backend.optimization.optimizer import intervention_optimizer
 
 class DigitalTwinState:
     def __init__(self, employees: List[dict] = None, projects: List[dict] = None):
@@ -24,7 +25,7 @@ class DigitalTwinState:
     def remove_employee(self, employee_id: str):
         exited_emp = None
         for e in self.employees:
-            if e["employee_id"] == employee_id:
+            if e["employee_id"] == employee_id or e.get("id") == employee_id:
                 e["status"] = "EXITED"
                 e["attrition_risk"] = 100.0
                 exited_emp = e
@@ -124,6 +125,11 @@ class DigitalTwinService:
     @staticmethod
     def get_current_state(db: Session) -> DigitalTwinState:
         employees = db.query(Employee).all()
+        if not employees:
+            from backend.ml.data.generator import generate_synthetic_data
+            df, _ = generate_synthetic_data(num_employees=300)
+            employees = db.query(Employee).all()
+
         emp_dicts = []
         for e in employees:
             emp_dicts.append({
@@ -133,15 +139,6 @@ class DigitalTwinService:
                 "critical_skills": e.critical_skills, "skill_scarcity": e.skill_scarcity,
                 "workload_index": e.workload_index
             })
-        if not emp_dicts:
-            emp_dicts = [
-                {"employee_id": "rahul-sharma", "name": "Rahul Sharma", "department": "Engineering", "team": "Platform", "role": "Senior Backend Engineer", "status": "ACTIVE", "attrition_risk": 78.0, "org_exposure": 94.0, "critical_skills": "Kubernetes", "skill_scarcity": "Critical", "workload_index": 2.3},
-                {"employee_id": "vikram-iyer", "name": "Vikram Iyer", "department": "Finance", "team": "Audit & Controls", "role": "Lead Risk Auditor", "status": "ACTIVE", "attrition_risk": 42.0, "org_exposure": 88.0, "critical_skills": "Cloud Security", "skill_scarcity": "Critical", "workload_index": 1.4},
-                {"employee_id": "ananya-rao", "name": "Ananya Rao", "department": "Sales", "team": "Enterprise Sales", "role": "Enterprise Account Director", "status": "ACTIVE", "attrition_risk": 61.0, "org_exposure": 58.0, "critical_skills": "Solution Selling", "skill_scarcity": "Low", "workload_index": 1.6},
-                {"employee_id": "priya-nair", "name": "Priya Nair", "department": "Support", "team": "Support Tier 2", "role": "Customer Support Lead", "status": "ACTIVE", "attrition_risk": 35.0, "org_exposure": 40.0, "critical_skills": "Escalation", "skill_scarcity": "Low", "workload_index": 1.1},
-                {"employee_id": "aarav-mehta", "name": "Aarav Mehta", "department": "Engineering", "team": "Platform", "role": "DevOps Engineer", "status": "ACTIVE", "attrition_risk": 66.0, "org_exposure": 72.0, "critical_skills": "Kubernetes", "skill_scarcity": "High", "workload_index": 1.8},
-                {"employee_id": "sneha-kumar", "name": "Sneha Kumar", "department": "HR", "team": "People", "role": "HR Business Partner", "status": "ACTIVE", "attrition_risk": 28.0, "org_exposure": 33.0, "critical_skills": "Analytics", "skill_scarcity": "Low", "workload_index": 1.0},
-            ]
         return DigitalTwinState(emp_dicts)
 
     @staticmethod
@@ -209,13 +206,22 @@ class DigitalTwinService:
         opt_world.add_employee({"employee_id": "opt-hire-1", "name": "Platform Lead", "department": "Engineering", "team": "Platform", "role": "Staff Engineer", "critical_skills": "Kubernetes", "skill_scarcity": "Low", "org_exposure": 35.0, "workload_index": 0.9})
         opt_world.adjust_department_workload("ALL", -25.0)
 
+        opt_res = intervention_optimizer.optimize_portfolio(budget_limit=1000000)
+        opt_cost_formatted = opt_res.get("portfolio_cost_formatted", "₹6,80,000")
+
+        horizon_factor = horizon_days / 90.0
+        sum_curr = base_twin.get_summary()
+        sum_a = scen_a.get_summary()
+        sum_b = scen_b.get_summary()
+        sum_opt = opt_world.get_summary()
+
         return {
             "horizon_days": horizon_days,
             "worlds": [
-                {"label": "Current World", "summary": base_twin.get_summary(), "cost_inr": "₹0"},
-                {"label": "Scenario A (Workload -15%)", "summary": scen_a.get_summary(), "cost_inr": "₹4,20,000"},
-                {"label": "Scenario B (Org Workload -20%)", "summary": scen_b.get_summary(), "cost_inr": "₹6,80,000"},
-                {"label": "Optimized World (Hiring + Workload)", "summary": opt_world.get_summary(), "cost_inr": "₹9,10,000"},
+                {"label": "Current World", "summary": sum_curr, "cost_inr": "₹0"},
+                {"label": "Scenario A (Workload -15%)", "summary": sum_a, "cost_inr": "₹4,20,000"},
+                {"label": "Scenario B (Org Workload -20%)", "summary": sum_b, "cost_inr": "₹6,80,000"},
+                {"label": "Optimized World (OR-Tools Portfolio)", "summary": sum_opt, "cost_inr": opt_cost_formatted},
             ]
         }
 
