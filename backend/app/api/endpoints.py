@@ -256,9 +256,17 @@ def research_qwen_agent(req: ResearchRequest):
 def test_decision_robustness(req: DecisionRobustnessRequest):
     return robustness_engine.test_robustness(req.employee_id, req.recommendation, req.baseline_risk, req.evidence_count or 5, req.has_conflict or False)
 
+class DecisionEvaluateRequest(BaseModel):
+    employee_id: str
+    risk_score: Optional[float] = None
+    evidence_count: Optional[int] = 5
+
 @router.post("/decision/evaluate")
-def evaluate_decision_firewall(employee_id: str, risk_score: float, evidence_count: int = 5):
-    return decision_firewall.evaluate_decision(employee_id, risk_score, evidence_count, 88.0)
+def evaluate_decision_firewall(req: Optional[DecisionEvaluateRequest] = None, employee_id: Optional[str] = "rahul-sharma", risk_score: Optional[float] = None):
+    emp_id = req.employee_id if req else employee_id
+    r_score = req.risk_score if req and req.risk_score is not None else risk_score
+    ev_count = req.evidence_count if req and req.evidence_count is not None else 5
+    return decision_firewall.evaluate_decision(emp_id, risk_score=r_score, evidence_count=ev_count)
 
 # Decision System & Memory
 @router.post("/decisions")
