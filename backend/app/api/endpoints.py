@@ -56,6 +56,10 @@ class ScenarioRequest(BaseModel):
 class DigitalTwinSimulateRequest(BaseModel):
     scenario: str
     target_department: Optional[str] = None
+    actions: Optional[dict] = None
+
+class DigitalTwinCompareRequest(BaseModel):
+    horizon_days: Optional[int] = 90
 
 class PortfolioOptimizationRequest(BaseModel):
     budget_limit: Optional[float] = 50000.0
@@ -182,8 +186,14 @@ def get_digital_twin_state(db: Session = Depends(get_db)):
     return digital_twin_service.get_current_state(db).get_summary()
 
 @router.post("/digital-twin/simulate")
+@router.post("/digital-twin/scenario")
 def simulate_digital_twin(req: DigitalTwinSimulateRequest, db: Session = Depends(get_db)):
-    return digital_twin_service.simulate_state_scenario(db, req.scenario, req.target_department)
+    return digital_twin_service.simulate_state_scenario(db, req.scenario, req.target_department, req.actions)
+
+@router.post("/digital-twin/compare")
+def compare_digital_twin_worlds(req: Optional[DigitalTwinCompareRequest] = None, db: Session = Depends(get_db)):
+    horizon = req.horizon_days if req else 90
+    return digital_twin_service.compare_worlds(db, horizon_days=horizon)
 
 # Temporal & Propagation
 @router.get("/intelligence/trajectory/{employee_id}")
