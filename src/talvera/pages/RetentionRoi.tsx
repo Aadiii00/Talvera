@@ -3,7 +3,7 @@ import { PageHeader } from "@/talvera/components/shared/PageHeader";
 import { MetricCard } from "@/talvera/components/shared/MetricCard";
 import { ChartCard } from "@/talvera/components/shared/ChartCard";
 import { StatusPill } from "@/talvera/components/shared/StatusPill";
-import { interventions, retentionRoiSummary } from "@/talvera/data/interventions";
+import { interventions, retentionRoiSummary, formatINR } from "@/talvera/data/interventions";
 
 export default function RetentionRoi() {
   return (
@@ -12,9 +12,9 @@ export default function RetentionRoi() {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <MetricCard label="Employees at Risk" value={retentionRoiSummary.employeesAtRisk} />
-        <MetricCard label="Replacement Cost" value={`$${retentionRoiSummary.replacementCost}M`} />
-        <MetricCard label="Intervention Cost" value={`$${retentionRoiSummary.interventionCost}M`} />
-        <MetricCard label="Potential Loss Avoided" value={`$${retentionRoiSummary.potentialLossAvoided}M`} />
+        <MetricCard label="Replacement Cost" value={retentionRoiSummary.replacementCost} />
+        <MetricCard label="Intervention Cost" value={retentionRoiSummary.interventionCost} />
+        <MetricCard label="Potential Loss Avoided" value={retentionRoiSummary.potentialLossAvoided} />
         <MetricCard label="Retention ROI" value={`${retentionRoiSummary.retentionRoi}x`} />
       </div>
 
@@ -23,7 +23,7 @@ export default function RetentionRoi() {
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead>Intervention</TableHead>
-              <TableHead>Cost</TableHead>
+              <TableHead>Cost / Employee</TableHead>
               <TableHead>Risk Reduction</TableHead>
               <TableHead>Operational Impact</TableHead>
               <TableHead>ROI</TableHead>
@@ -38,7 +38,7 @@ export default function RetentionRoi() {
                     <p className="text-sm font-medium text-foreground">{item.name}</p>
                     <p className="text-xs text-muted-foreground">{item.description}</p>
                   </TableCell>
-                  <TableCell className="text-sm text-foreground">${item.cost.toLocaleString()}</TableCell>
+                  <TableCell className="text-sm font-semibold text-foreground">{formatINR(item.cost)}</TableCell>
                   <TableCell className="text-sm text-foreground">-{item.riskReduction} pts</TableCell>
                   <TableCell>
                     <StatusPill

@@ -1,30 +1,33 @@
 from ortools.linear_solver import pywraplp
 from typing import Dict, Any, List
 
-ALL_CANDIDATES = [
-    {"id": "comp", "name": "Compensation Adjustment", "cost": 8600, "risk_reduction": 22, "training_cap": 0, "salary_cost": 8600, "affected": 46, "impact": "Low"},
-    {"id": "training", "name": "Training & Upskilling", "cost": 2200, "risk_reduction": 14, "training_cap": 10, "salary_cost": 0, "affected": 118, "impact": "Medium"},
-    {"id": "workload", "name": "Workload Reduction", "cost": 1400, "risk_reduction": 18, "training_cap": 0, "salary_cost": 0, "affected": 73, "impact": "Medium"},
-    {"id": "mobility", "name": "Internal Mobility", "cost": 3100, "risk_reduction": 16, "training_cap": 0, "salary_cost": 0, "affected": 34, "impact": "Medium"},
-    {"id": "manager", "name": "Manager Intervention", "cost": 900, "risk_reduction": 11, "training_cap": 0, "salary_cost": 0, "affected": 61, "impact": "Low"},
-    {"id": "hiring", "name": "Hiring Backfill", "cost": 21500, "risk_reduction": 9, "training_cap": 0, "salary_cost": 21500, "affected": 12, "impact": "High"},
+ALL_CANDIDATES_INR = [
+    {"id": "comp", "name": "Compensation Adjustment", "cost": 86000, "risk_reduction": 22, "training_cap": 0, "salary_cost": 86000, "affected": 46, "impact": "Low"},
+    {"id": "training", "name": "Training & Upskilling", "cost": 22000, "risk_reduction": 14, "training_cap": 10, "salary_cost": 0, "affected": 118, "impact": "Medium"},
+    {"id": "workload", "name": "Workload Reduction", "cost": 14000, "risk_reduction": 18, "training_cap": 0, "salary_cost": 0, "affected": 73, "impact": "Medium"},
+    {"id": "mobility", "name": "Internal Mobility", "cost": 31000, "risk_reduction": 16, "training_cap": 0, "salary_cost": 0, "affected": 34, "impact": "Medium"},
+    {"id": "manager", "name": "Manager Intervention", "cost": 9000, "risk_reduction": 11, "training_cap": 0, "salary_cost": 0, "affected": 61, "impact": "Low"},
+    {"id": "hiring", "name": "Hiring Backfill", "cost": 215000, "risk_reduction": 9, "training_cap": 0, "salary_cost": 215000, "affected": 12, "impact": "High"},
 ]
+
+def format_inr(val: float) -> str:
+    return f"₹{val:,.0f}"
 
 class InterventionOptimizer:
     @staticmethod
     def optimize_portfolio(
-        budget_limit: float = 50000.0,
+        budget_limit: float = 500000.0,
         training_capacity: int = 50,
         hiring_available: int = 20,
-        salary_limit: float = 30000.0,
+        salary_limit: float = 300000.0,
         selected_names: List[str] = None
     ) -> Dict[str, Any]:
         """
-        OR-Tools Integer Programming Solver for Portfolio Interventions.
+        OR-Tools Integer Programming Solver for Portfolio Interventions in INR.
         """
-        candidates = ALL_CANDIDATES
+        candidates = ALL_CANDIDATES_INR
         if selected_names and len(selected_names) > 0:
-            filtered = [c for c in ALL_CANDIDATES if c["name"] in selected_names]
+            filtered = [c for c in ALL_CANDIDATES_INR if c["name"] in selected_names]
             if len(filtered) > 0:
                 candidates = filtered
 
@@ -32,12 +35,12 @@ class InterventionOptimizer:
         if budget_limit < min_cost:
             return {
                 "solver_status": "NO_FEASIBLE_PLAN",
-                "blocking_constraint": f"Budget limit (${budget_limit:,.0f}) is below minimum intervention cost (${min_cost:,.0f}).",
+                "blocking_constraint": f"Budget limit ({format_inr(budget_limit)}) is below minimum intervention cost ({format_inr(min_cost)}).",
                 "selected_interventions": [],
                 "portfolio_cost": 0,
                 "estimated_risk_change": 0,
                 "affected_employees": 0,
-                "roi": 0,
+                "roi": "N/A",
                 "tradeoffs": "Increase budget constraint to generate a feasible plan."
             }
 
@@ -82,6 +85,7 @@ class InterventionOptimizer:
                     breakdown.append({
                         "name": c["name"],
                         "cost": c["cost"],
+                        "cost_formatted": format_inr(c["cost"]),
                         "risk_effect": -c["risk_reduction"],
                         "affected": c["affected"],
                         "impact": c["impact"]
@@ -90,21 +94,25 @@ class InterventionOptimizer:
         if not recommended:
             return {
                 "solver_status": "NO_FEASIBLE_PLAN",
-                "blocking_constraint": f"Salary constraint (${salary_limit:,.0f}) or Training Capacity ({training_capacity}%) blocked selected candidate interventions.",
+                "blocking_constraint": f"Salary constraint ({format_inr(salary_limit)}) or Training Capacity ({training_capacity}%) blocked selected candidate interventions.",
                 "selected_interventions": [],
                 "portfolio_cost": 0,
                 "estimated_risk_change": 0,
                 "affected_employees": 0,
-                "roi": 0,
+                "roi": "N/A",
                 "tradeoffs": "Adjust constraints to generate a feasible portfolio."
             }
 
-        roi = round((total_risk_reduction * 4200.0) / portfolio_cost, 1) if portfolio_cost > 0 else 0.0
+        roi = round((total_risk_reduction * 42000.0) / portfolio_cost, 1) if portfolio_cost > 0 else "N/A"
 
         return {
             "solver_status": "OPTIMAL" if status == pywraplp.Solver.OPTIMAL else "FEASIBLE",
             "selected_interventions": recommended,
             "portfolio_cost": portfolio_cost,
+            "portfolio_cost_formatted": format_inr(portfolio_cost),
+            "budget_limit": budget_limit,
+            "budget_remaining": budget_limit - portfolio_cost,
+            "budget_remaining_formatted": format_inr(budget_limit - portfolio_cost),
             "estimated_risk_change": -total_risk_reduction,
             "cascade_change": -round(total_risk_reduction * 1.4, 1),
             "affected_employees": total_affected,
@@ -112,8 +120,6 @@ class InterventionOptimizer:
             "operational_impact": "High" if any(c["impact"] == "High" for c in breakdown) else "Medium",
             "roi": roi,
             "breakdown": breakdown,
-            "budget_limit": budget_limit,
-            "budget_remaining": budget_limit - portfolio_cost,
             "tradeoffs": "Requires manager 1:1 bandwidth and Q3 training budget allocation.",
             "evidence": [
                 {"signal": "XGBoost Risk", "value": "HIGH RISK (78% baseline)"},
@@ -122,7 +128,7 @@ class InterventionOptimizer:
                 {"signal": "Cascade Exposure", "value": "92.0 cascade score with 14 impacted teammates"},
                 {"signal": "Intervention Effect", "value": f"-{total_risk_reduction} pts estimated risk reduction"},
                 {"signal": "Scenario Result", "value": "90D projected risk reduction to 35%"},
-                {"signal": "Optimizer Constraints", "value": f"Budget feasible (${portfolio_cost:,.0f} / ${budget_limit:,.0f})"},
+                {"signal": "Optimizer Constraints", "value": f"Budget feasible ({format_inr(portfolio_cost)} / {format_inr(budget_limit)})"},
             ]
         }
 
