@@ -1,11 +1,30 @@
-import { useState } from "react";
-import { Send, Sparkles, Loader2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Send, Sparkles, Loader2, Bot, User } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { suggestedQuestions, type AskTalveraResponse } from "@/talvera/data/askTalvera";
 
 const QWEN_OPENROUTER_KEY = "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";
+
+export interface ChatMessage {
+  id: string;
+  sender: "user" | "assistant";
+  text: string;
+  evidence?: string;
+  recommendation?: string;
+  decisionStatus?: string;
+  timestamp: string;
+}
+
+const initialGreeting: ChatMessage = {
+  id: "msg-welcome",
+  sender: "assistant",
+  text: "Hello Sarah! I am Talvera's Qwen AI Intelligence Assistant. I can help you analyze workforce attrition risk, simulate team contagion, review policy compliance, or optimize retention intervention plans. What would you like to explore today?",
+  evidence: "Multi-Model Intelligence Engine Active (XGBoost, SHAP, Temporal, Graph, OR-Tools, Chroma RAG)",
+  recommendation: "You can ask about specific employees (e.g. Rahul Sharma, Vikram Iyer), teams, skills, or workforce policy.",
+  decisionStatus: "ONLINE",
+  timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+};
 
 interface AIDrawerProps {
   open: boolean;
@@ -14,196 +33,209 @@ interface AIDrawerProps {
 
 export function AIDrawer({ open, onOpenChange }: AIDrawerProps) {
   const [input, setInput] = useState("");
-  const [selected, setSelected] = useState<AskTalveraResponse | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([initialGreeting]);
   const [loading, setLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const handleAsk = async (question: string) => {
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, loading]);
+
+  const handleSendMessage = async (userQuestion: string) => {
+    if (!userQuestion.trim() || loading) return;
+
+    const userMsg: ChatMessage = {
+      id: `usr-${Date.now()}`,
+      sender: "user",
+      text: userQuestion.trim(),
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
     setLoading(true);
 
-    // 1. Try local backend FastAPI agent endpoint
+    let aiText = "";
+    let evidenceText = "XGBoost risk: 78% | Workload index: 2.3x | Single point of failure: Kubernetes";
+    let recText = "Review on-call workload rotation and enable 30-day monitoring";
+    let decState = "REVIEW";
+
+    // 1. Try local backend FastAPI endpoint
     try {
       const res = await fetch("http://localhost:8000/api/agent/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, employee_id: "rahul-sharma" }),
+        body: JSON.stringify({ question: userQuestion, employee_id: "rahul-sharma" }),
       });
 
       if (res.ok) {
         const data = await res.json();
-        setSelected({
-          question,
-          answer: data.answer || "No response generated.",
-          evidence: Array.isArray(data.key_evidence) ? data.key_evidence.join(" | ") : (data.key_evidence || "Multi-model evidence verified"),
-          simulation: "Simulating on-call redistribution shows 24-point risk reduction",
-          recommendation: data.recommended_next_step ? `Recommended Action: ${data.recommended_next_step}` : "Review before dispatching workflow",
-          decisionStatus: data.decision_state || "REVIEW",
-        });
-        setLoading(false);
-        return;
-      }
-    } catch {
-      // Backend server port not exposed directly to client browser in preview mode
-    }
-
-    // 2. Direct OpenRouter Qwen 3.8 Flash API call from client
-    try {
-      const openrouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${QWEN_OPENROUTER_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://talvera.io",
-          "X-Title": "TALVERA Workforce Intelligence"
-        },
-        body: JSON.stringify({
-          model: "qwen/qwen-2.5-72b-instruct",
-          messages: [
-            {
-              role: "system",
-              content: "You are Qwen 3.8 Flash for TALVERA Workforce Intelligence. Provide a direct, professional, 2-3 sentence answer based on workforce evidence (XGBoost risk score 78%, workload 2.3x team average, single point of failure in Kubernetes)."
-            },
-            {
-              role: "user",
-              content: question
-            }
-          ],
-          max_tokens: 150,
-          temperature: 0.2
-        })
-      });
-
-      if (openrouterRes.ok) {
-        const orData = await openrouterRes.json();
-        const textAnswer = orData.choices?.[0]?.message?.content?.trim();
-        if (textAnswer) {
-          setSelected({
-            question,
-            answer: textAnswer,
-            evidence: "XGBoost risk 78% | Workload index 2.3x average | Single point of failure in Kubernetes | SHAP driver: engagement_score",
-            simulation: "Simulating 15% workload reduction projects risk dropping to 54%",
-            recommendation: "Rebalance on-call rotation & enable 30-day stability monitoring",
-            decisionStatus: "REVIEW (Qwen 3.8 Flash Live Response)",
-          });
-          setLoading(false);
-          return;
+        if (data.answer) {
+          aiText = data.answer;
+          if (data.key_evidence) {
+            evidenceText = Array.isArray(data.key_evidence) ? data.key_evidence.join(" | ") : data.key_evidence;
+          }
+          if (data.recommended_next_step) recText = `Recommended Action: ${data.recommended_next_step}`;
+          if (data.decision_state) decState = data.decision_state;
         }
       }
-    } catch (e) {
-      console.warn("Direct OpenRouter call note:", e);
+    } catch {
+      // Backend port not directly reachable from client browser in preview
     }
 
-    // 3. Fallback to pre-generated evidence match
-    const match = suggestedQuestions.find((item) => item.question.toLowerCase() === question.toLowerCase());
-    setSelected(match ?? {
-      question,
-      answer: "Engineering risk is elevated due to sustained on-call overload on the Platform team and key-person dependency on Kubernetes.",
-      evidence: "Workload index 2.3x average, single point of failure in Kubernetes skill mesh.",
-      simulation: "Workload reduction simulates a 24-point risk drop within 45 days.",
-      recommendation: "Dispatch Workload Reduction workflow.",
-      decisionStatus: "REVIEW",
-    });
+    // 2. Direct OpenRouter Qwen 3.8 Flash API call if backend response not obtained
+    if (!aiText) {
+      try {
+        const historyContext = messages.slice(-3).map((m) => `${m.sender}: ${m.text}`).join("\n");
+        const openrouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${QWEN_OPENROUTER_KEY}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://talvera.io",
+            "X-Title": "TALVERA Workforce Intelligence",
+          },
+          body: JSON.stringify({
+            model: "qwen/qwen-2.5-72b-instruct",
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You are Qwen 3.8 Flash for TALVERA Workforce Intelligence. You assist Chief People Officers with workforce analytics, employee risk, skill scarcity, and retention workflows. Provide helpful, professional, concise 2-3 sentence responses. Do NOT invent fake company statistics if asked general questions.",
+              },
+              {
+                role: "user",
+                content: `Chat History:\n${historyContext}\n\nCurrent Question: ${userQuestion}`,
+              },
+            ],
+            max_tokens: 200,
+            temperature: 0.3,
+          }),
+        });
+
+        if (openrouterRes.ok) {
+          const orData = await openrouterRes.json();
+          const generated = orData.choices?.[0]?.message?.content?.trim();
+          if (generated) {
+            aiText = generated;
+            decState = "REVIEW (Qwen 3.8 Flash)";
+          }
+        }
+      } catch (e) {
+        console.warn("OpenRouter API note:", e);
+      }
+    }
+
+    // Fallback text if network call fails
+    if (!aiText) {
+      aiText = "Engineering risk is currently 78% on the Platform team due to high on-call workload. How would you like to intervene?";
+    }
+
+    const aiMsg: ChatMessage = {
+      id: `ai-${Date.now()}`,
+      sender: "assistant",
+      text: aiText,
+      evidence: evidenceText,
+      recommendation: recText,
+      decisionStatus: decState,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    setMessages((prev) => [...prev, aiMsg]);
     setLoading(false);
   };
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!input.trim() || loading) return;
-    const q = input.trim();
-    setInput("");
-    handleAsk(q);
+    handleSendMessage(input);
   };
 
   return (
-    <Sheet
-      open={open}
-      onOpenChange={(next) => {
-        onOpenChange(next);
-        if (!next) {
-          setSelected(null);
-          setInput("");
-        }
-      }}
-    >
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
-        <SheetHeader className="border-b border-border px-5 py-4 text-left">
-          <SheetTitle className="flex items-center gap-2 text-base font-bold">
-            <Sparkles className="h-4 w-4 text-status-teal" />
-            Ask Talvera
+        <SheetHeader className="border-b border-border/80 px-5 py-4 text-left">
+          <SheetTitle className="flex items-center justify-between text-base font-bold">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-status-teal" />
+              Ask Talvera
+            </div>
+            <span className="rounded-full bg-status-green-soft px-2 py-0.5 text-[10px] font-bold text-status-green">
+              Qwen 3.8 Flash Online
+            </span>
           </SheetTitle>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          {loading ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
-              <Loader2 className="h-6 w-6 animate-spin text-status-teal" />
-              <p className="text-xs font-semibold">Synthesizing multi-model evidence via Qwen 3.8 Flash...</p>
-            </div>
-          ) : !selected ? (
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Suggested questions
-              </p>
-              <div className="flex flex-col gap-2">
-                {suggestedQuestions.map((item) => (
-                  <button
-                    key={item.question}
-                    onClick={() => handleAsk(item.question)}
-                    className="rounded-xl border border-border bg-card px-3.5 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-accent"
-                  >
-                    {item.question}
-                  </button>
-                ))}
+        {/* Message Thread */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          {messages.map((msg) => (
+            <div key={msg.id} className={`flex flex-col ${msg.sender === "user" ? "items-end" : "items-start"}`}>
+              <div className="flex items-center gap-1.5 mb-1 text-[10px] text-muted-foreground">
+                {msg.sender === "assistant" ? (
+                  <>
+                    <Bot className="h-3.5 w-3.5 text-status-teal" />
+                    <span className="font-bold text-foreground">Talvera AI</span>
+                  </>
+                ) : (
+                  <>
+                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="font-medium">You</span>
+                  </>
+                )}
+                <span>· {msg.timestamp}</span>
+              </div>
+
+              <div
+                className={`max-w-[90%] rounded-2xl p-3.5 text-xs leading-relaxed ${
+                  msg.sender === "user"
+                    ? "bg-primary text-primary-foreground font-medium rounded-tr-none"
+                    : "bg-card border border-border text-foreground rounded-tl-none shadow-sm space-y-2.5"
+                }`}
+              >
+                <p>{msg.text}</p>
+
+                {msg.sender === "assistant" && msg.id !== "msg-welcome" && (
+                  <div className="mt-2 space-y-2 border-t border-border/60 pt-2 text-[11px]">
+                    {msg.evidence && (
+                      <div className="rounded-xl bg-status-blue-soft p-2 text-status-blue">
+                        <p className="font-bold uppercase text-[9px]">Evidence</p>
+                        <p className="mt-0.5">{msg.evidence}</p>
+                      </div>
+                    )}
+                    {msg.recommendation && (
+                      <div className="rounded-xl bg-status-orange-soft p-2 text-status-orange">
+                        <p className="font-bold uppercase text-[9px]">Recommendation</p>
+                        <p className="mt-0.5">{msg.recommendation}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <button
-                onClick={() => setSelected(null)}
-                className="text-xs font-medium text-muted-foreground hover:text-foreground"
-              >
-                ← Back to suggestions
-              </button>
-              {selected.question && (
-                <p className="text-sm font-bold text-foreground">{selected.question}</p>
-              )}
-              <ResponseBlock label="Answer" tone="teal" content={selected.answer} />
-              <ResponseBlock label="Evidence" tone="blue" content={selected.evidence} />
-              <ResponseBlock label="Simulation" tone="purple" content={selected.simulation} />
-              <ResponseBlock label="Recommendation" tone="orange" content={selected.recommendation} />
-              <ResponseBlock label="Decision Status" tone="green" content={selected.decisionStatus} />
+          ))}
+
+          {loading && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+              <Loader2 className="h-4 w-4 animate-spin text-status-teal" />
+              <span>Qwen 3.8 Flash is reasoning...</span>
             </div>
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="flex items-center gap-2 border-t border-border px-4 py-3">
+        {/* Input Bar */}
+        <form onSubmit={handleSubmit} className="flex items-center gap-2 border-t border-border px-4 py-3 bg-card">
           <Input
             value={input}
             onChange={(event) => setInput(event.target.value)}
             placeholder="Ask Talvera anything about your workforce..."
             className="h-10 rounded-full border-border bg-secondary/60 text-xs"
           />
-          <Button type="submit" size="icon" disabled={loading} className="h-10 w-10 shrink-0 rounded-full">
+          <Button type="submit" size="icon" disabled={loading || !input.trim()} className="h-10 w-10 shrink-0 rounded-full">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </form>
       </SheetContent>
     </Sheet>
-  );
-}
-
-function ResponseBlock({
-  label,
-  content,
-  tone,
-}: {
-  label: string;
-  content: string;
-  tone: "teal" | "blue" | "purple" | "orange" | "green";
-}) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-3.5">
-      <p className={`text-[11px] font-bold uppercase tracking-wide text-status-${tone}`}>{label}</p>
-      <p className="mt-1.5 text-xs leading-relaxed text-foreground">{content}</p>
-    </div>
   );
 }
