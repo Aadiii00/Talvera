@@ -71,6 +71,9 @@ class AgentAskRequest(BaseModel):
     question: str
     employee_id: Optional[str] = "rahul-sharma"
 
+class ResearchRequest(BaseModel):
+    query: str
+
 class InterventionEffectRequest(BaseModel):
     record: dict
     intervention_type: str
@@ -240,8 +243,13 @@ def search_policies(req: PolicySearchRequest):
     return policy_rag.search_policies(req.query)
 
 @router.post("/agent/ask")
+@router.post("/agent/chat")
 def ask_qwen_agent(req: AgentAskRequest):
-    return qwen_agent.ask(req.question, req.employee_id)
+    return qwen_agent.ask(req.question, req.employee_id or "rahul-sharma")
+
+@router.post("/agent/research")
+def research_qwen_agent(req: ResearchRequest):
+    return qwen_agent.research(req.query)
 
 # Decision Governance & Robustness
 @router.post("/decision/robustness")

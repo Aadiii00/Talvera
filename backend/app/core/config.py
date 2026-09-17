@@ -14,8 +14,9 @@ class Settings(BaseSettings):
     NEO4J_USER: Optional[str] = "neo4j"
     NEO4J_PASSWORD: Optional[str] = "password"
     
-    # Qwen / AI
-    QEN_API_KEY: Optional[str] = None
+    # Qwen 3.8 Flash API Key (OpenRouter)
+    QWEN_API_KEY: Optional[str] = "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"
+    QWEN_MODEL: str = "qwen/qwen-2.5-72b-instruct" # or qwen 3.8 flash endpoint on OpenRouter
     
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
