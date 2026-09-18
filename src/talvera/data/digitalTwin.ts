@@ -46,26 +46,27 @@ export interface DigitalTwinDiffResult {
 }
 
 export function getRealDigitalTwinState(): DigitalTwinStateSummary {
-  const totalEmployees = 812;
-  const highRisk = 203;
+  const activeEmps = employees.filter((e) => (e as { status?: string }).status !== "EXITED");
+  const totalEmployees = activeEmps.length;
+  const highRisk = activeEmps.filter((e) => e.attritionRisk >= 70).length;
   const spofs = skills.filter((s) => s.singlePointOfFailure).map((s) => s.name);
-  const avgRisk = 34.0;
-  const avgExposure = 74.2;
+  const avgRisk = roundVal(activeEmps.reduce((acc, e) => acc + e.attritionRisk, 0) / Math.max(1, totalEmployees));
+  const avgExposure = roundVal(activeEmps.reduce((acc, e) => acc + e.orgExposure, 0) / Math.max(1, totalEmployees));
 
   return {
     employee_count: totalEmployees,
-    team_count: 46,
+    team_count: new Set(activeEmps.map((e) => e.team)).size,
     department_count: departments.length,
     critical_skills_count: skills.length,
     single_points_of_failure: spofs,
-    project_count: 28,
+    project_count: 6,
     high_risk_population: highRisk,
     attrition_risk: avgRisk,
-    team_health: 66.0,
+    team_health: roundVal(100.0 - avgRisk * 0.8),
     organizational_exposure: avgExposure,
-    skill_exposure: 58.0,
+    skill_exposure: roundVal(minVal(95.0, spofs.length * 12.0 + 30.0)),
     project_exposure: 52.0,
-    cascade_exposure: 34.0,
+    cascade_exposure: roundVal(minVal(98.0, avgRisk * 0.6 + spofs.length * 4.0)),
     operational_disruption: "Medium",
   };
 }
@@ -145,7 +146,7 @@ export function simulateDigitalTwinScenario(
     team_health: roundVal(100.0 - simRisk * 0.8),
     organizational_exposure: simExp,
     cascade_exposure: simCascade,
-    high_risk_population: Math.max(20, Math.round(base.high_risk_population * (simRisk / base.attrition_risk))),
+    high_risk_population: Math.max(1, Math.round(base.high_risk_population * (simRisk / base.attrition_risk))),
     operational_disruption: simCascade >= 60 ? "High" : simCascade >= 35 ? "Medium" : "Low",
   };
 
@@ -180,7 +181,6 @@ export function simulateDigitalTwinScenario(
 
 export function getRealWorldComparisons(horizon_days = 90) {
   const base = getRealDigitalTwinState();
-  const factor = horizon_days / 90.0;
 
   const scenA = simulateDigitalTwinScenario("WORKLOAD_REDUCTION").simulated_state;
   const scenB = simulateDigitalTwinScenario("COMBINED").simulated_state;
@@ -195,6 +195,10 @@ export function getRealWorldComparisons(horizon_days = 90) {
 
 function roundVal(v: number): number {
   return Math.round(v * 10) / 10;
+}
+
+function minVal(a: number, b: number): number {
+  return Math.min(a, b);
 }
 
 export const bestAvailableFuture = {

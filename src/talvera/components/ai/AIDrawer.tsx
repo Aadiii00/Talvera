@@ -197,13 +197,13 @@ export function AIDrawer({ open, onOpenChange }: AIDrawerProps) {
 
                 {msg.sender === "assistant" && msg.id !== "msg-welcome" && (
                   <div className="mt-2 space-y-2 border-t border-border/60 pt-2 text-[11px]">
-                    {messages.filter(m => m.role === "user").length === 0 && message.evidence && (
+                    {message.evidence && (
                       <div className="rounded-xl bg-status-blue-soft p-2 text-status-blue">
                         <p className="font-bold uppercase text-[9px]">Evidence</p>
                         <p className="mt-0.5">{msg.evidence}</p>
                       </div>
                     )}
-                    {messages.filter(m => m.role === "user").length === 0 && message.recommendation && (
+                    {message.recommendation && (
                       <div className="rounded-xl bg-status-orange-soft p-2 text-status-orange">
                         <p className="font-bold uppercase text-[9px]">Recommendation</p>
                         <p className="mt-0.5">{msg.recommendation}</p>
