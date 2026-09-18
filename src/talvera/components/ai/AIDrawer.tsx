@@ -37,6 +37,8 @@ export function AIDrawer({ open, onOpenChange }: AIDrawerProps) {
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const hasUserSentMessage = messages.some((m) => m.sender === "user");
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -195,15 +197,15 @@ export function AIDrawer({ open, onOpenChange }: AIDrawerProps) {
               >
                 <p>{msg.text}</p>
 
-                {msg.sender === "assistant" && msg.id !== "msg-welcome" && (
+                {msg.sender === "assistant" && !hasUserSentMessage && msg.id === "msg-welcome" && (
                   <div className="mt-2 space-y-2 border-t border-border/60 pt-2 text-[11px]">
-                    {message.evidence && (
+                    {msg.evidence && (
                       <div className="rounded-xl bg-status-blue-soft p-2 text-status-blue">
                         <p className="font-bold uppercase text-[9px]">Evidence</p>
                         <p className="mt-0.5">{msg.evidence}</p>
                       </div>
                     )}
-                    {message.recommendation && (
+                    {msg.recommendation && (
                       <div className="rounded-xl bg-status-orange-soft p-2 text-status-orange">
                         <p className="font-bold uppercase text-[9px]">Recommendation</p>
                         <p className="mt-0.5">{msg.recommendation}</p>
