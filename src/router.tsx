@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
 import { TalveraShell } from "./talvera/components/layout/TalveraShell";
 import Overview from "./talvera/pages/Overview";
@@ -21,7 +21,7 @@ export const routers = [
   {
     path: "/",
     name: "home",
-    element: <Navigate to="/talvera/overview" replace />,
+    element: <Landing />,
   },
   {
     path: "/talvera",
